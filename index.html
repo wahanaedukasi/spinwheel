@@ -32,10 +32,24 @@
         }
         /* Memperbesar ukuran roda saat dalam mode layar penuh */
         .fullscreen-mode .wheel-wrapper {
-            width: 70vh !important;
-            height: 70vh !important;
-            max-width: 90vw !important;
-            max-height: 90vw !important;
+            width: 84vh !important;
+            height: 84vh !important;
+            max-width: 94vw !important;
+            max-height: 94vw !important;
+        }
+        .fullscreen-mode #center-spin-btn {
+            width: 6.5rem !important;
+            height: 6.5rem !important;
+        }
+        .fullscreen-mode #center-spin-btn span {
+            font-size: 1rem !important;
+        }
+        /* Efek zoom-in saat kursor diarahkan ke roda yang sedang berputar (mode layar penuh) */
+        .fullscreen-mode .wheel-wrapper.is-spinning:hover {
+            transform: scale(1.07);
+        }
+        .fullscreen-mode .wheel-wrapper.is-spinning {
+            cursor: zoom-in;
         }
     </style>
 </head>
@@ -186,6 +200,7 @@
         const outerWheelContainer = document.getElementById('outer-wheel-container');
         const centerSpinBtn = document.getElementById('center-spin-btn');
         const fullscreenBtn = document.getElementById('fullscreen-btn');
+        const wheelWrapper = document.querySelector('.wheel-wrapper');
 
         let audioCtx = null;
         function playTickSound() {
@@ -213,6 +228,49 @@
                 osc.stop(audioCtx.currentTime + 0.04);
             } catch (e) {
                 // Ignore audio restriction errors
+            }
+        }
+
+        function playWinSound() {
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                const now = audioCtx.currentTime;
+                // Fanfare ceria: do-mi-sol-do (oktaf atas)
+                const notes = [523.25, 659.25, 783.99, 1046.5];
+                notes.forEach((freq, i) => {
+                    const startTime = now + i * 0.11;
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, startTime);
+                    gain.gain.setValueAtTime(0, startTime);
+                    gain.gain.linearRampToValueAtTime(0.2, startTime + 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.35);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(startTime);
+                    osc.stop(startTime + 0.4);
+                });
+                // Kerlip nada tinggi di akhir sebagai sentuhan "yeay"
+                const sparkleStart = now + notes.length * 0.11;
+                const sparkle = audioCtx.createOscillator();
+                const sparkleGain = audioCtx.createGain();
+                sparkle.type = 'sine';
+                sparkle.frequency.setValueAtTime(1568, sparkleStart);
+                sparkleGain.gain.setValueAtTime(0, sparkleStart);
+                sparkleGain.gain.linearRampToValueAtTime(0.14, sparkleStart + 0.02);
+                sparkleGain.gain.exponentialRampToValueAtTime(0.001, sparkleStart + 0.5);
+                sparkle.connect(sparkleGain);
+                sparkleGain.connect(audioCtx.destination);
+                sparkle.start(sparkleStart);
+                sparkle.stop(sparkleStart + 0.55);
+            } catch (e) {
+                // Abaikan jika audio dibatasi browser
             }
         }
 
@@ -371,6 +429,7 @@
 
             isSpinning = true;
             lastWinner = winner;
+            if (wheelWrapper) wheelWrapper.classList.add('is-spinning');
 
             const spinDuration = settings.duration * 1000;
             const sliceAngle = (2 * Math.PI) / currentNames.length;
@@ -407,6 +466,7 @@
                     requestAnimationFrame(animateSpin);
                 } else {
                     isSpinning = false;
+                    if (wheelWrapper) wheelWrapper.classList.remove('is-spinning');
                     showWinnerModal(lastWinner);
                 }
             }
@@ -421,6 +481,7 @@
         const keepWinnerBtn = document.getElementById('keep-winner-btn');
 
         function showWinnerModal(name) {
+            playWinSound();
             winnerNameDisplay.innerText = name;
             winnerModal.classList.remove('opacity-0', 'pointer-events-none');
             winnerModalContent.classList.remove('scale-90');
@@ -496,34 +557,41 @@
             updateWheelData();
         });
 
+        let fallbackFullscreen = false;
+
         fullscreenBtn.addEventListener('click', () => {
-            try {
-                if (!document.fullscreenElement) {
-                    if (outerWheelContainer.requestFullscreen) {
-                        outerWheelContainer.requestFullscreen().catch(err => {
-                            outerWheelContainer.classList.toggle('fullscreen-mode');
-                            setTimeout(resizeCanvas, 60);
-                        });
-                    } else {
-                        outerWheelContainer.classList.toggle('fullscreen-mode');
+            const isActive = !!document.fullscreenElement || fallbackFullscreen;
+
+            if (!isActive) {
+                // Fullscreen-kan seluruh dokumen (bukan hanya kontainer roda) agar
+                // modal nama pemenang & pengaturan tetap tampil di atas roda.
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen().then(() => {
+                        outerWheelContainer.classList.add('fullscreen-mode');
                         setTimeout(resizeCanvas, 60);
-                    }
+                    }).catch(() => {
+                        fallbackFullscreen = true;
+                        outerWheelContainer.classList.add('fullscreen-mode');
+                        setTimeout(resizeCanvas, 60);
+                    });
                 } else {
-                    if (document.exitFullscreen) {
-                        document.exitFullscreen();
-                    } else {
-                        outerWheelContainer.classList.remove('fullscreen-mode');
-                        setTimeout(resizeCanvas, 60);
-                    }
+                    fallbackFullscreen = true;
+                    outerWheelContainer.classList.add('fullscreen-mode');
+                    setTimeout(resizeCanvas, 60);
                 }
-            } catch (err) {
-                outerWheelContainer.classList.toggle('fullscreen-mode');
-                setTimeout(resizeCanvas, 60);
+            } else {
+                if (document.fullscreenElement && document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else {
+                    fallbackFullscreen = false;
+                    outerWheelContainer.classList.remove('fullscreen-mode');
+                    setTimeout(resizeCanvas, 60);
+                }
             }
         });
 
         document.addEventListener('fullscreenchange', () => {
-            if (!document.fullscreenElement) {
+            if (!document.fullscreenElement && !fallbackFullscreen) {
                 outerWheelContainer.classList.remove('fullscreen-mode');
             }
             setTimeout(resizeCanvas, 60);
