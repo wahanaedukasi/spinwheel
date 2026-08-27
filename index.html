@@ -107,8 +107,8 @@
                 </div>
             </div>
 
-            <textarea id="names-input" class="w-full flex-1 p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none font-medium leading-relaxed" placeholder="Ali&#10;Beatriz&#10;Charles&#10;Mataram Diya&#10;Eric Mataram&#10;Fatimah"></textarea>
-            <p class="text-[11px] text-slate-400 mt-1.5 leading-snug">Tips: pastikan mengetik nama dengan baik dan benar.</p>
+            <textarea id="names-input" class="w-full flex-1 p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none font-medium leading-relaxed" placeholder="Ali&#10;Beatriz&#10;Charles&#10;Mataram Diya&#10;Eric Cakranegara&#10;Fatimah Ampenan"></textarea>
+            <p class="text-[11px] text-slate-400 mt-1.5 leading-snug">Tips: tekan enter untuk memasukkan nama baru dan klik perbarui roda.</p>
 
             <div class="mt-3 flex gap-2">
                 <button id="save-names-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl text-sm shadow-md transition-all">Perbarui Roda</button>
@@ -180,7 +180,7 @@
     </div>
 
     <script>
-        let currentNames = ["Ali", "Beatriz", "Charles", "Mataram Diya", "Eric Mataram", "Fatimah"];
+        let currentNames = ["Ali", "Beatriz", "Charles", "Mataram Diya", "Eric Cakranegara", "Fatimah Ampenan"];
 
         let isSpinning = false;
         let currentAngle = 0;
@@ -304,9 +304,13 @@
                 (currentNames.length === 1 && currentNames[0] === "(Kosong)");
         }
 
-        // Cek apakah sebuah nama mengandung kata "mataram" (tanpa memandang huruf besar/kecil)
-        function containsMataram(name) {
-            return name.toLowerCase().includes('mataram');
+        // Daftar kata kunci pembeda: jika nama mengandung salah satu kata ini, dianggap "kata kunci wilayah"
+        const REGION_KEYWORDS = ['mataram', 'cakranegara', 'cakra', 'ampenan'];
+
+        // Cek apakah sebuah nama mengandung salah satu kata kunci wilayah (tanpa memandang huruf besar/kecil)
+        function containsRegionKeyword(name) {
+            const lowerName = name.toLowerCase();
+            return REGION_KEYWORDS.some(keyword => lowerName.includes(keyword));
         }
 
         function parseNamesInput() {
@@ -404,16 +408,17 @@
                 return;
             }
 
-            // Aturan: klik DI DALAM roda -> pemenang dari nama TANPA kata "Mataram".
-            // Klik DI LUAR roda -> pemenang dari nama YANG MENGANDUNG kata "Mataram".
+            // Aturan: klik DI DALAM roda -> pemenang dari nama TANPA kata kunci wilayah.
+            // Klik DI LUAR roda -> pemenang dari nama YANG MENGANDUNG salah satu kata kunci wilayah
+            // ("mataram", "cakranegara", "cakra", atau "ampenan").
             const allowedGroup = clickArea === 'inside'
-                ? currentNames.filter(n => !containsMataram(n))
-                : currentNames.filter(n => containsMataram(n));
+                ? currentNames.filter(n => !containsRegionKeyword(n))
+                : currentNames.filter(n => containsRegionKeyword(n));
 
             if (allowedGroup.length === 0) {
                 const message = clickArea === 'inside'
-                    ? 'Semua nama mengandung kata "Mataram". Tidak ada nama yang bisa diundi dari area ini.'
-                    : 'Tidak ada nama yang mengandung kata "Mataram". Tambahkan nama dulu.';
+                    ? 'Semua nama mengandung kata kunci wilayah ("Mataram"/"Cakranegara"/"Cakra"/"Ampenan"). Tidak ada nama yang bisa diundi dari area ini.'
+                    : 'Tidak ada nama yang mengandung "Mataram", "Cakranegara", "Cakra", atau "Ampenan". Tambahkan nama dulu.';
                 toast(message);
                 return;
             }
@@ -506,7 +511,7 @@
             namesInput.value = currentNames.join('\n');
         }
 
-        // Klik pada area roda dalam atau tombol tengah -> undian dari nama TANPA kata "Mataram"
+        // Klik pada area roda dalam atau tombol tengah -> undian dari nama TANPA kata kunci wilayah
         canvas.addEventListener('click', (e) => {
             e.stopPropagation();
             startSpin('inside');
@@ -517,7 +522,7 @@
             startSpin('inside');
         });
 
-        // Klik pada area luar putih -> undian dari nama YANG MENGANDUNG kata "Mataram"
+        // Klik pada area luar putih -> undian dari nama YANG MENGANDUNG salah satu kata kunci wilayah
         outerWheelContainer.addEventListener('click', (e) => {
             if (e.target === canvas || canvas.contains(e.target) || e.target === fullscreenBtn || fullscreenBtn.contains(e.target)) return;
             startSpin('outside');
@@ -622,7 +627,7 @@
         });
 
         window.onload = () => {
-            namesInput.value = "Ali\nBeatriz\nCharles\nMataram Diya\nEric Mataram\nFatimah";
+            namesInput.value = "Ali\nBeatriz\nCharles\nMataram Diya\nEric Cakranegara\nFatimah Ampenan";
             parseNamesInput();
         };
     </script>
