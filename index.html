@@ -107,8 +107,8 @@
                 </div>
             </div>
 
-            <textarea id="names-input" class="w-full flex-1 p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none font-medium leading-relaxed" placeholder="Ali&#10;Beatriz&#10;Charles&#10; Diya&#10;Eric&#10;Fatimah"></textarea>
-            <p class="text-[11px] text-slate-400 mt-1.5 leading-snug">Tips: pastikan nama tertulis dengan benar.</p>
+            <textarea id="names-input" class="w-full flex-1 p-3 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none font-medium leading-relaxed" placeholder="Ali&#10;Beatriz&#10;Charles&#10;Mataram Diya&#10;Eric Mataram&#10;Fatimah"></textarea>
+            <p class="text-[11px] text-slate-400 mt-1.5 leading-snug">Tips: klik <b>di dalam roda</b> untuk mengundi nama <b>tanpa</b> kata "Mataram". Klik <b>di luar roda</b> untuk mengundi nama yang <b>mengandung</b> kata "Mataram".</p>
 
             <div class="mt-3 flex gap-2">
                 <button id="save-names-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 rounded-xl text-sm shadow-md transition-all">Perbarui Roda</button>
@@ -180,10 +180,8 @@
     </div>
 
     <script>
-        let topGroupNames = ["Ali", "Beatriz", "Charles"];
-        let bottomGroupNames = ["Diya", "Eric", "Fatimah"];
-        
-        let currentNames = []; 
+        let currentNames = ["Ali", "Beatriz", "Charles", "Mataram Diya", "Eric Mataram", "Fatimah"];
+
         let isSpinning = false;
         let currentAngle = 0;
         let lastWinner = "";
@@ -306,35 +304,27 @@
                 (currentNames.length === 1 && currentNames[0] === "(Kosong)");
         }
 
+        // Cek apakah sebuah nama mengandung kata "mataram" (tanpa memandang huruf besar/kecil)
+        function containsMataram(name) {
+            return name.toLowerCase().includes('mataram');
+        }
+
         function parseNamesInput() {
             const rawText = namesInput.value;
             const rawLines = rawText.split('\n');
-            
-            topGroupNames = [];
-            bottomGroupNames = [];
-            let currentTarget = topGroupNames;
 
-            for (let line of rawLines) {
-                // Tanda spasi satu di depan sebagai penanda pembatas kelompok
-                if (line.startsWith(' ')) {
-                    currentTarget = bottomGroupNames;
-                }
-                
-                const trimmed = line.trim();
-                if (trimmed === '') continue;
+            currentNames = rawLines
+                .map(line => line.trim())
+                .filter(line => line !== '');
 
-                currentTarget.push(trimmed);
-            }
-
-            if (topGroupNames.length === 0 && bottomGroupNames.length === 0) {
-                topGroupNames = ["(Kosong)"];
+            if (currentNames.length === 0) {
+                currentNames = ["(Kosong)"];
             }
 
             updateWheelData();
         }
 
         function updateWheelData() {
-            currentNames = [...topGroupNames, ...bottomGroupNames];
             totalNamesCount.innerText = isListEmpty() ? 0 : currentNames.length;
             resizeCanvas();
         }
@@ -406,7 +396,7 @@
             ctx.stroke();
         }
 
-        function startSpin(targetGroup) {
+        function startSpin(clickArea) {
             if (isSpinning) return;
 
             if (isListEmpty()) {
@@ -414,10 +404,17 @@
                 return;
             }
 
-            const allowedGroup = targetGroup === 'top' ? topGroupNames : bottomGroupNames;
+            // Aturan: klik DI DALAM roda -> pemenang dari nama TANPA kata "Mataram".
+            // Klik DI LUAR roda -> pemenang dari nama YANG MENGANDUNG kata "Mataram".
+            const allowedGroup = clickArea === 'inside'
+                ? currentNames.filter(n => !containsMataram(n))
+                : currentNames.filter(n => containsMataram(n));
+
             if (allowedGroup.length === 0) {
-                const groupLabel = targetGroup === 'top' ? 'atas' : 'bawah';
-                toast(`Kelompok ${groupLabel} masih kosong. Tambahkan nama dulu.`);
+                const message = clickArea === 'inside'
+                    ? 'Semua nama mengandung kata "Mataram". Tidak ada nama yang bisa diundi dari area ini.'
+                    : 'Tidak ada nama yang mengandung kata "Mataram". Tambahkan nama dulu.';
+                toast(message);
                 return;
             }
 
@@ -495,9 +492,8 @@
         }
 
         removeWinnerBtn.addEventListener('click', () => {
-            topGroupNames = topGroupNames.filter(n => n !== lastWinner);
-            bottomGroupNames = bottomGroupNames.filter(n => n !== lastWinner);
-            syncTextareaFromArrays();
+            currentNames = currentNames.filter(n => n !== lastWinner);
+            syncTextareaFromArray();
             parseNamesInput();
             closeModal();
         });
@@ -506,35 +502,25 @@
             closeModal();
         });
 
-        function syncTextareaFromArrays() {
-            let lines = [...topGroupNames];
-            if (bottomGroupNames.length > 0) {
-                bottomGroupNames.forEach((n, idx) => {
-                    if (idx === 0) {
-                        lines.push(" " + n); // Mengembalikan tanda spasi sebagai kode pembatas
-                    } else {
-                        lines.push(n);
-                    }
-                });
-            }
-            namesInput.value = lines.join('\n');
+        function syncTextareaFromArray() {
+            namesInput.value = currentNames.join('\n');
         }
 
-        // Klik pada area roda dalam atau tombol tengah memicu undian Kelompok Atas
+        // Klik pada area roda dalam atau tombol tengah -> undian dari nama TANPA kata "Mataram"
         canvas.addEventListener('click', (e) => {
             e.stopPropagation();
-            startSpin('top');
+            startSpin('inside');
         });
 
         centerSpinBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            startSpin('top');
+            startSpin('inside');
         });
 
-        // Klik pada area luar putih memicu undian Kelompok Bawah
+        // Klik pada area luar putih -> undian dari nama YANG MENGANDUNG kata "Mataram"
         outerWheelContainer.addEventListener('click', (e) => {
             if (e.target === canvas || canvas.contains(e.target) || e.target === fullscreenBtn || fullscreenBtn.contains(e.target)) return;
-            startSpin('bottom');
+            startSpin('outside');
         });
 
         document.getElementById('save-names-btn').addEventListener('click', () => {
@@ -543,17 +529,15 @@
 
         document.getElementById('shuffle-btn').addEventListener('click', () => {
             parseNamesInput();
-            topGroupNames.sort(() => Math.random() - 0.5);
-            bottomGroupNames.sort(() => Math.random() - 0.5);
-            syncTextareaFromArrays();
+            currentNames.sort(() => Math.random() - 0.5);
+            syncTextareaFromArray();
             updateWheelData();
         });
 
         document.getElementById('sort-btn').addEventListener('click', () => {
             parseNamesInput();
-            topGroupNames.sort();
-            bottomGroupNames.sort();
-            syncTextareaFromArrays();
+            currentNames.sort();
+            syncTextareaFromArray();
             updateWheelData();
         });
 
@@ -638,7 +622,7 @@
         });
 
         window.onload = () => {
-            namesInput.value = "Ali\nBeatriz\nCharles\n Diya\nEric\nFatimah";
+            namesInput.value = "Ali\nBeatriz\nCharles\nMataram Diya\nEric Mataram\nFatimah";
             parseNamesInput();
         };
     </script>
